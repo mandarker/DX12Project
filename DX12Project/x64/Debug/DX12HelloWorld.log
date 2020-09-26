@@ -1,3 +1,0 @@
-﻿C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Microsoft\VC\v160\Microsoft.CppBuild.targets(491,5): warning MSB8028: The intermediate directory (x64\Debug\) contains files shared from another project (DX12HelloWorld.vcxproj).  This can lead to incorrect clean and rebuild behavior.
-  main.cpp
-  DX12HelloWorld.vcxproj -> D:\Projects\DX12\DX12HelloWorld\x64\Debug\DX12Project.exe

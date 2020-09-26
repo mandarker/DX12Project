@@ -21,10 +21,9 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{52eb61c7-a079-4d3f-b154-4d8f44f3f8d1}</ProjectGuid>
-    <RootNamespace>DX12HelloWorld</RootNamespace>
+    <ProjectGuid>{c967260d-d00a-46dd-ac8a-b1714a50d211}</ProjectGuid>
+    <RootNamespace>DX12Project</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>DX12Project</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -79,8 +78,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.19041.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.19041.0\shared;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.19041.0\um\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -93,8 +90,9 @@
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -123,7 +121,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

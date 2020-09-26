@@ -28,6 +28,8 @@ int Width = 800;
 int Height = 600;
 bool FullScreen = false;
 
+bool Running = true;
+
 // app name
 // Long Pointer to a Const TCHAR STRing
 LPCTSTR WindowName = L"WindowApp";
@@ -40,5 +42,54 @@ bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, int width, int height, b
 
 void mainloop();
 
+
+
 // sends message (event)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+const int frameBufferCount = 3;
+
+ID3D12Device* device;
+
+// used to switch between render buffers
+IDXGISwapChain3* swapChain;
+
+ID3D12CommandQueue* commandQueue;
+
+ID3D12DescriptorHeap* rtvDescriptorHeap;
+
+ID3D12Resource* renderTargets[frameBufferCount];
+
+// have enough allocators for buffer * threads
+// currently only one thread, but should work on multithreading in the near future
+ID3D12CommandAllocator* commandAllocator[frameBufferCount];
+
+ID3D12GraphicsCommandList* commandList;
+
+// should have as many as allocators (buffer * threads)
+// locked until command list is executed
+ID3D12Fence* fence[frameBufferCount];
+
+HANDLE fenceEvent;
+
+// incremented every frame
+UINT64 fenceValue[frameBufferCount];
+
+// current render target view
+int frameIndex;
+
+int rtvDescriptorSize;
+
+bool InitD3D();
+
+void Update();
+
+void UpdatePipeline();
+
+void Render();
+
+void Cleanup();
+
+void WaitForPreviousFrame();
+
+#define SAFE_RELEASE(x) if( x != NULL ) { x->Release(); x = NULL; }

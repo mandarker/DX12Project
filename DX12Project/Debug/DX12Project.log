@@ -1,0 +1,3 @@
+﻿main.obj : error LNK2019: unresolved external symbol _D3D12CreateDevice@16 referenced in function "bool __cdecl InitD3D(void)" (?InitD3D@@YA_NXZ)
+main.obj : error LNK2019: unresolved external symbol _CreateDXGIFactory1@8 referenced in function "bool __cdecl InitD3D(void)" (?InitD3D@@YA_NXZ)
+D:\Projects\DX12\DX12Project\Debug\DX12Project.exe : fatal error LNK1120: 2 unresolved externals
