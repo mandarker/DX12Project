@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, int width, int height, bool fullscreen) {
+bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, bool fullscreen) {
 	if (fullscreen) {
 		// monitor handler
 		// gets handle to display monitor that has largest area of intersection with "window"
@@ -9,8 +9,8 @@ bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, int width, int height, b
 		MONITORINFO mi = { sizeof(mi) };
 		GetMonitorInfo(hmon, &mi);
 
-		width = mi.rcMonitor.right - mi.rcMonitor.left;
-		height = mi.rcMonitor.bottom - mi.rcMonitor.top;
+		Width = mi.rcMonitor.right - mi.rcMonitor.left;
+		Height = mi.rcMonitor.bottom - mi.rcMonitor.top;
 	}
 
 	// different from WNDCLASS since it has size of structure as well as member for icon
@@ -40,7 +40,7 @@ bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, int width, int height, b
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,
-		width, height,
+		Width, Height,
 		NULL,
 		NULL,
 		hInstance,
@@ -79,7 +79,8 @@ void mainloop() {
 			DispatchMessage(&msg);
 		}
 		else {
-
+			Update();
+			Render();
 		}
 	}
 }
@@ -88,11 +89,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
 	case WM_KEYDOWN:
 		if (wParam == VK_ESCAPE) {
-			if (MessageBox(0, L"Exit?", L"Exit?", MB_YESNO | MB_ICONQUESTION) == IDYES)
+			if (MessageBox(0, L"Exit?", L"Exit?", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+				Running = false;
 				DestroyWindow(hwnd);
+			}
 		}
 		return 0;
 	case WM_DESTROY:
+		Running = false;
 		PostQuitMessage(0);
 		return 0;
 	default:
@@ -113,9 +117,8 @@ bool InitD3D() {
 	// 1 stands for version 1.1
 	// IID_PPV_ARGS macro prevents type mismatch
 	hr = CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory));
-	if (FAILED(hr)) {
+	if (FAILED(hr))
 		return false;
-	}
 
 	// adapters are graphics cards (including integrated graphics)
 	IDXGIAdapter1* adapter;
@@ -134,6 +137,7 @@ bool InitD3D() {
 		}
 		
 		// check if device works with feature level 11 for direct3d 12
+		// null 4th parameter because only checking if the device exists
 		hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr);
 		if (SUCCEEDED(hr))
 		{
@@ -188,6 +192,8 @@ bool InitD3D() {
 	// static cast is used to get current back buffer, since CreateSwapChain requires IDXGISwapChain
 	swapChain = static_cast<IDXGISwapChain3*>(tempSwapChain);
 
+	frameIndex = swapChain->GetCurrentBackBufferIndex();
+
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
 	rtvHeapDesc.NumDescriptors = frameBufferCount;
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -226,6 +232,7 @@ bool InitD3D() {
 	commandList->Close();
 
 	for (int i = 0; i < frameBufferCount; i++) {
+		// fence initial value is 0
 		hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence[i]));
 		if (FAILED(hr))
 			return false;
@@ -261,10 +268,13 @@ void UpdatePipeline() {
 
 	// recording commands
 	// note that doing something bad during recording does not stop program from running (dx12)
+
+	// resource barrier changes the resource state to a render target state in order to change the 
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), frameIndex, rtvDescriptorSize);
 
+	// Output Merger
 	commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
 	const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
@@ -295,7 +305,7 @@ void Render() {
 	if (FAILED(hr))
 		Running = false;
 
-	// present back buffor
+	// present back buffer
 	hr = swapChain->Present(0, 0);
 	if (FAILED(hr))
 		Running = false;
@@ -332,6 +342,7 @@ void WaitForPreviousFrame() {
 
 	// if wanted fence value is less than the current fence value
 	if (fence[frameIndex]->GetCompletedValue() < fenceValue[frameIndex]) {
+		// set fence event that will be triggered once the value of the first parameter is met
 		hr = fence[frameIndex]->SetEventOnCompletion(fenceValue[frameIndex], fenceEvent);
 		if (FAILED(hr))
 			Running = false;
@@ -344,7 +355,7 @@ void WaitForPreviousFrame() {
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
-	if (!InitializeWindow(hInstance, nShowCmd, Width, Height, FullScreen)) {
+	if (!InitializeWindow(hInstance, nShowCmd, FullScreen)) {
 		MessageBox(0, L"Window Initialization - Failed", L"Error", MB_OK);
 		return 1;
 	}

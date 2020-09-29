@@ -38,7 +38,7 @@ LPCTSTR WindowName = L"WindowApp";
 LPCTSTR WindowTitle = L"Window";
 
 // handle instance (hinstance)
-bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, int width, int height, bool fullscreen);
+bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, bool fullscreen);
 
 void mainloop();
 
