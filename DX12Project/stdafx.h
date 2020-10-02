@@ -92,4 +92,35 @@ void Cleanup();
 
 void WaitForPreviousFrame();
 
-#define SAFE_RELEASE(x) if( x != NULL ) { x->Release(); x = NULL; }
+#define SAFE_RELEASE(x) if( x ) { x->Release(); x = NULL; }
+
+// PSO
+ID3D12PipelineState* pipelineStateObject;
+
+// this contains data for shaders to access
+ID3D12RootSignature* rootSignature;
+
+// area of render target drawn on
+//viewport stretches from -1 to 1 vertically and horizontally
+D3D12_VIEWPORT viewport;
+
+// area to draw in, rest of the area will be "scissored" out
+D3D12_RECT scissorRect;
+
+// buffer in GPU memory that contains vertex data for tris
+ID3D12Resource* vertexBuffer;
+
+// contains pointer to vertex data in GPU, total size of buffer, and size of each element
+D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+
+// default buffer to write index data for triangles
+ID3D12Resource* indexBuffer;
+
+// holds information on index buffer
+D3D12_INDEX_BUFFER_VIEW indexBufferView;
+
+// 24 bits for depth, 8 for stencil
+ID3D12Resource* depthStencilBuffer;
+
+ID3D12DescriptorHeap* dsDescriptorHeap;
+
