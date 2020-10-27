@@ -19,8 +19,6 @@
 // this file has helper functions
 #include "d3dx12.h"
 
-
-
 // window handle
 HWND hwnd = NULL;
 
@@ -123,4 +121,17 @@ D3D12_INDEX_BUFFER_VIEW indexBufferView;
 ID3D12Resource* depthStencilBuffer;
 
 ID3D12DescriptorHeap* dsDescriptorHeap;
+
+struct ConstantBuffer {
+    // direct x math float 4
+    DirectX::XMFLOAT4 colorMultiplier;
+};
+
+ID3D12DescriptorHeap* mainDescriptorHeap[frameBufferCount];
+ID3D12Resource* constantBufferUploadHeap[frameBufferCount];
+
+// only used to change color of rectangle, actual data
+ConstantBuffer cbColorMultiplierData;
+
+UINT8* cbColorMultiplierGPUAddress[frameBufferCount];
 
