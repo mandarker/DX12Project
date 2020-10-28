@@ -1,11 +1,9 @@
 #include "stdafx.h"
 
-using namespace DirectX;
-
 struct Vertex {
 	Vertex(float x, float y, float z, float r, float g, float b, float a) : pos(x, y, z), color(r, g, b, a) {}
-	XMFLOAT3 pos;
-	XMFLOAT4 color;
+	DirectX::XMFLOAT3 pos;
+	DirectX::XMFLOAT4 color;
 };
 
 bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, bool fullscreen) {
@@ -359,10 +357,10 @@ bool InitD3D() {
 
 	Vertex vList[] = {
 		// first quad
-		{ -0.5f,  0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{  0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f,  0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{  0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
 		{ -0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{  0.5f,  0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{  0.5f,  0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 1.0f }
 	};
 
 	int vBufferSize = sizeof(vList);
@@ -513,8 +511,8 @@ bool InitD3D() {
 
 		// cpu will not read from constant buffer
 		CD3DX12_RANGE readRange(0, 0);
-		hr = constantBufferUploadHeap[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbColorMultiplierGPUAddress));
-		memcpy(cbColorMultiplierGPUAddress, &cbColorMultiplierData, sizeof(cbColorMultiplierData));
+		hr = constantBufferUploadHeap[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbColorMultiplierGPUAddress[i]));
+		memcpy(cbColorMultiplierGPUAddress[i], &cbColorMultiplierData, sizeof(cbColorMultiplierData));
 	}
 
 	// resource heaps for cbvs
@@ -528,7 +526,7 @@ bool InitD3D() {
 	commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
 	// increment fence value to ensure data is uploaded before drawing
-	fenceValue[frameIndex++];
+	fenceValue[frameIndex]++;
 	hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
 	if (FAILED(hr))
 		return false;
