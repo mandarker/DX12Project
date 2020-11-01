@@ -19,6 +19,8 @@
 // this file has helper functions
 #include "d3dx12.h"
 
+using namespace DirectX;
+
 // window handle
 HWND hwnd = NULL;
 
@@ -135,3 +137,42 @@ ConstantBuffer cbColorMultiplierData;
 
 UINT8* cbColorMultiplierGPUAddress[frameBufferCount];
 
+// new constant buffer for worldviewprojection matrix
+struct ConstantBufferPerObject {
+    DirectX::XMFLOAT4X4 wvpMat;
+};
+
+// remember that sizeof is bytes
+// remember that there needs to be 255 bytes offset between constantbuffers
+// 16 + 255, then bitwise and ...1100000000
+// this comes out to be 256
+// alternatively the size can be figured out by modulus, but this method is faster for large objects
+int ConstantBufferPerObjectAlignedSize = (sizeof(ConstantBufferPerObject) + 255) & ~255;
+
+// actual data sent to gpu
+ConstantBufferPerObject cbPerObject;
+
+// memory on gpu
+ID3D12Resource* constantBufferUploadHeaps[frameBufferCount];
+
+// pointer to each cb resource heaps
+UINT8* cbvGPUAddress[frameBufferCount];
+
+DirectX::XMFLOAT4X4 cameraProjMat;
+DirectX::XMFLOAT4X4 cameraViewMat;
+
+DirectX::XMFLOAT4 cameraPosition;
+DirectX::XMFLOAT4 cameraTarget;
+DirectX::XMFLOAT4 cameraUp;
+
+// cube 1
+DirectX::XMFLOAT4X4 cube1WorldMat;
+DirectX::XMFLOAT4X4 cube1RotMat;
+DirectX::XMFLOAT4 cube1Position;
+
+// cube 2
+DirectX::XMFLOAT4X4 cube2WorldMat;
+DirectX::XMFLOAT4X4 cube2RotMat;
+DirectX::XMFLOAT4 cube2Position;
+
+int numCubeIndices;

@@ -1,4 +1,4 @@
 ﻿  main.cpp
-D:\Projects\DX12\DX12Project\DX12Project\main.cpp(545,19): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
-D:\Projects\DX12\DX12Project\DX12Project\main.cpp(546,20): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
+D:\Projects\DX12\DX12Project\DX12Project\main.cpp(622,19): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
+D:\Projects\DX12\DX12Project\DX12Project\main.cpp(623,20): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
   DX12Project.vcxproj -> D:\Projects\DX12\DX12Project\x64\Debug\DX12Project.exe
