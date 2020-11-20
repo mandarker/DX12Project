@@ -1,7 +1,5 @@
 ﻿  main.cpp
-D:\Projects\DX12\DX12Project\DX12Project\main.cpp(802,19): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
-D:\Projects\DX12\DX12Project\DX12Project\main.cpp(803,20): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
-main.obj : error LNK2019: unresolved external symbol "enum DXGI_FORMAT __cdecl GetDXGIFormatFromWICFormat(struct _GUID &)" (?GetDXGIFormatFromWICFormat@@YA?AW4DXGI_FORMAT@@AEAU_GUID@@@Z) referenced in function "int __cdecl LoadImageDataFromFile(unsigned char * *,struct D3D12_RESOURCE_DESC &,wchar_t const *,int &)" (?LoadImageDataFromFile@@YAHPEAPEAEAEAUD3D12_RESOURCE_DESC@@PEB_WAEAH@Z)
-main.obj : error LNK2019: unresolved external symbol "struct _GUID __cdecl GetConvertToWICFormat(struct _GUID &)" (?GetConvertToWICFormat@@YA?AU_GUID@@AEAU1@@Z) referenced in function "int __cdecl LoadImageDataFromFile(unsigned char * *,struct D3D12_RESOURCE_DESC &,wchar_t const *,int &)" (?LoadImageDataFromFile@@YAHPEAPEAEAEAUD3D12_RESOURCE_DESC@@PEB_WAEAH@Z)
-main.obj : error LNK2019: unresolved external symbol "int __cdecl GetDXGIFormatBitsPerPixel(enum DXGI_FORMAT &)" (?GetDXGIFormatBitsPerPixel@@YAHAEAW4DXGI_FORMAT@@@Z) referenced in function "int __cdecl LoadImageDataFromFile(unsigned char * *,struct D3D12_RESOURCE_DESC &,wchar_t const *,int &)" (?LoadImageDataFromFile@@YAHPEAPEAEAEAUD3D12_RESOURCE_DESC@@PEB_WAEAH@Z)
-D:\Projects\DX12\DX12Project\x64\Debug\DX12Project.exe : fatal error LNK1120: 3 unresolved externals
+D:\Projects\DX12\DX12Project\DX12Project\main.cpp(800,19): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
+D:\Projects\DX12\DX12Project\DX12Project\main.cpp(801,20): warning C4244: '=': conversion from 'int' to 'FLOAT', possible loss of data
+D:\Projects\DX12\DX12Project\DX12Project\main.cpp(1136): warning C4715: 'GetDXGIFormatBitsPerPixel': not all control paths return a value
+  DX12Project.vcxproj -> D:\Projects\DX12\DX12Project\x64\Debug\DX12Project.exe

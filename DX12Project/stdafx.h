@@ -131,7 +131,7 @@ struct ConstantBuffer {
     DirectX::XMFLOAT4 colorMultiplier;
 };
 
-ID3D12DescriptorHeap* mainDescriptorHeap[frameBufferCount];
+ID3D12DescriptorHeap* mainDescriptorHeap;
 ID3D12Resource* constantBufferUploadHeap[frameBufferCount];
 
 // only used to change color of rectangle, actual data
