@@ -1,10 +1,126 @@
 #include "stdafx.h"
 
 struct Vertex {
-	Vertex(float x, float y, float z, float r, float g, float b, float a) : pos(x, y, z), color(r, g, b, a) {}
+	Vertex(float x, float y, float z, float u, float v) : pos(x, y, z), texCoord(u, v) {}
 	DirectX::XMFLOAT3 pos;
-	DirectX::XMFLOAT4 color;
+	DirectX::XMFLOAT2 texCoord;
 };
+
+int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescription, LPCWSTR filename, int& bytesPerRow) {
+	HRESULT hr;
+
+	// use wic factory to create bitmap decoders
+	static IWICImagingFactory* wicFactory;
+
+	IWICBitmapDecoder* wicDecoder = NULL;
+	IWICBitmapFrameDecode* wicFrame = NULL;
+	IWICFormatConverter* wicConverter = NULL;
+
+	bool imageConverted = false;
+
+	if (wicFactory == NULL)
+	{
+		// initialize Com library which contains functions for creation of com applications
+		// parameter must be null
+		CoInitialize(NULL);
+
+		hr = CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wicFactory));
+		if (FAILED(hr))
+			return 0;
+	}
+
+	hr = wicFactory->CreateDecoderFromFilename(filename, NULL, GENERIC_READ, WICDecodeMetadataCacheOnLoad, &wicDecoder); 
+	if (FAILED(hr))
+		return 0;
+
+	// get first frame since some files may be gifs
+	hr = wicDecoder->GetFrame(0, &wicFrame);
+	if (FAILED(hr))
+		return 0;
+
+	WICPixelFormatGUID pixelFormat;
+	hr = wicFrame->GetPixelFormat(&pixelFormat);
+	if (FAILED(hr))
+		return 0;
+
+	UINT textureWidth, textureHeight;
+	hr = wicFrame->GetSize(&textureWidth, &textureHeight);
+	if (FAILED(hr))
+		return 0;
+
+	// checks for DXGI format compatibility
+	DXGI_FORMAT dxgiFormat = GetDXGIFormatFromWICFormat(pixelFormat);
+
+	// if not compatible
+	if (dxgiFormat == DXGI_FORMAT_UNKNOWN)
+	{
+		// get dxgi compatible wic format
+		WICPixelFormatGUID convertToPixelFormat = GetConvertToWICFormat(pixelFormat);
+
+		// if can't then return
+		if (convertToPixelFormat == GUID_WICPixelFormatDontCare)
+			return 0;
+
+		dxgiFormat = GetDXGIFormatFromWICFormat(convertToPixelFormat);
+
+		hr = wicFactory->CreateFormatConverter(&wicConverter);
+		if (FAILED(hr))
+			return 0;
+
+		BOOL canConvert = FALSE;
+		hr = wicConverter->CanConvert(pixelFormat, convertToPixelFormat, &canConvert);
+		if (FAILED(hr))
+			return 0;
+
+		hr = wicConverter->Initialize(wicFrame, convertToPixelFormat, WICBitmapDitherTypeErrorDiffusion, 0, 0, WICBitmapPaletteTypeCustom);
+		if (FAILED(hr))
+			return 0;
+
+		imageConverted = true;
+	}
+
+	int bitsPerPixel = GetDXGIFormatBitsPerPixel(dxgiFormat);
+	bytesPerRow = (textureWidth * bitsPerPixel) / 8;
+	// image size in bytes
+	int imageSize = bytesPerRow * textureHeight;
+
+	*imageData = (BYTE*)malloc(imageSize);
+
+	// copy image data into allocated memory
+	if (imageConverted) {
+		// if converted, then use the wic converter
+		hr = wicConverter->CopyPixels(0, bytesPerRow, imageSize, *imageData);
+		if (FAILED(hr))
+			return 0;
+	}
+	else {
+		// if not converted then copy straight from frame
+		hr = wicFrame->CopyPixels(0, bytesPerRow, imageSize, *imageData);
+		if (FAILED(hr))
+			return 0;
+	}
+
+	resourceDescription = {};
+	// type of resource
+	resourceDescription.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	// zero is automatic alignment, but should be explicitly set for better mapping to heaps
+	resourceDescription.Alignment = 0;
+	resourceDescription.Width = textureWidth;
+	resourceDescription.Height = textureHeight;
+	// one image, also not a 3d image
+	resourceDescription.DepthOrArraySize = 1;
+	// no mipmaps
+	resourceDescription.MipLevels = 1;
+	// previously converted to dxgi format
+	resourceDescription.Format = dxgiFormat;
+	resourceDescription.SampleDesc.Count = 1;
+	resourceDescription.SampleDesc.Quality = 0;
+	// driver chooses the most efficient pixel layout (linear vs swizzle)
+	resourceDescription.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resourceDescription.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	return imageSize;
+}
 
 bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, bool fullscreen) {
 	if (fullscreen) {
@@ -253,58 +369,63 @@ bool InitD3D() {
 		return false;
 
 	// create root parameters before adding them into the root signature
-	/*
-	* This code was used for cb that was not versioned
-	* 
+	
 	D3D12_DESCRIPTOR_RANGE descriptorTableRanges[1];
-	// constant buffer value
-	descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	descriptorTableRanges[0].NumDescriptors = 1;
-	// start index
 	descriptorTableRanges[0].BaseShaderRegister = 0;
-	// typically can be 0, but allows arrays of unknown size not to overlap
 	descriptorTableRanges[0].RegisterSpace = 0;
-	// appends range to end of the tables
 	descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-	// the actual descriptor table, which holds the "pointer" to the data
 	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
 	descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges);
-	// pointer to first element of range
 	descriptorTable.pDescriptorRanges = &descriptorTableRanges[0];
 
-	// setting up the parameters
-	D3D12_ROOT_PARAMETER rootParameters[1];
-	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootParameters[0].DescriptorTable = descriptorTable;
-	// only visible for vertex shader
-	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-	*/
 
 	// new root parameter will support versioning
 	// versioning is necessary for multiple objects with different data for the constant buffer
 	// because different data per object means updating the constant buffer multiple times per command list
-	
-	// different parameters
+
 	D3D12_ROOT_DESCRIPTOR rootCBVDescriptor;
 	rootCBVDescriptor.RegisterSpace = 0;
 	rootCBVDescriptor.ShaderRegister = 0;
 
-	// setting up the parameters
-	D3D12_ROOT_PARAMETER rootParameters[1];
+	D3D12_ROOT_PARAMETER rootParameters[2];
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	rootParameters[0].Descriptor = rootCBVDescriptor;
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[1].DescriptorTable = descriptorTable;
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	
+	// static samplers are more performant, but cannot be changed
+	// only here to make code easy
+	D3D12_STATIC_SAMPLER_DESC sampler = {};
+	// point sampler
+	sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	// set to border color below
+	sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler.MipLODBias = 0;
+	sampler.MaxAnisotropy = 0;
+	sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+	sampler.MinLOD = 0.0f;
+	sampler.MaxLOD = D3D12_FLOAT32_MAX;
+	sampler.ShaderRegister = 0;
+	sampler.RegisterSpace = 0;
+	sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 	rootSignatureDesc.Init(_countof(rootParameters), 
-		rootParameters, 0, 
-		nullptr, 
+		rootParameters, 1, 
+		&sampler, 
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS);
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
 
 	ID3DBlob* signature;
 	// serialize root signature into bytecode
@@ -346,7 +467,7 @@ bool InitD3D() {
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
@@ -375,40 +496,40 @@ bool InitD3D() {
 
 	Vertex vList[] = {
 		// front face
-		{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
-		{  0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
-		{ -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{  0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+		{ -0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
+		{  0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
+		{ -0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
+		{  0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
 
 		// right side face
-		{  0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
-		{  0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
-		{  0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{  0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+		{  0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
+		{  0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
+		{  0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
+		{  0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
 
 		// left side face
-		{ -0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
-		{ -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
-		{ -0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{ -0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+		{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
+		{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
+		{ -0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
+		{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
 
 		// back face
-		{  0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
-		{ -0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
-		{  0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{ -0.5f,  0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+		{  0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
+		{ -0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
+		{  0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
+		{ -0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
 
 		// top face
-		{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
-		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
-		{ 0.5f,  0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{ -0.5f,  0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+		{ -0.5f,  0.5f, -0.5f, 0.0f, 1.0f },
+		{  0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
+		{  0.5f,  0.5f, -0.5f, 1.0f, 1.0f },
+		{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
 
 		// bottom face
-		{  0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
-		{ -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
-		{  0.5f, -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{ -0.5f, -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+		{  0.5f, -0.5f,  0.5f, 0.0f, 0.0f },
+		{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
+		{  0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
+		{ -0.5f, -0.5f,  0.5f, 1.0f, 0.0f },
 	};
 
 	int vBufferSize = sizeof(vList);
@@ -545,16 +666,6 @@ bool InitD3D() {
 
 	device->CreateDepthStencilView(depthStencilBuffer, &depthStencilDesc, dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	// descriptor heaps for cbvs
-	for (int i = 0; i < frameBufferCount; ++i) {
-		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 1;
-		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		hr = device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mainDescriptorHeap[i]));
-		if (FAILED(hr))
-			Running = false;
-	}
 
 	for (int i = 0; i < frameBufferCount; ++i) {
 		hr = device->CreateCommittedResource(
@@ -592,10 +703,75 @@ bool InitD3D() {
 		memcpy(cbvGPUAddress[i] + ConstantBufferPerObjectAlignedSize, &cbPerObject, sizeof(cbPerObject));
 	}
 
-	// resource heaps for cbvs
-	// only an upload heap because constant buffers will be updating at least once per frame
-	// if resource spans multiple frames, use the default heap method
+	D3D12_RESOURCE_DESC textureDesc;
+	int imageBytesPerRow;
+	BYTE* imageData;
+	int imageSize = LoadImageDataFromFile(&imageData, textureDesc, L"braynzar.jpg", imageBytesPerRow);
 
+	if (imageSize <= 0) {
+		Running = false;
+		return false;
+	}
+
+	hr = device->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&textureDesc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr,
+		IID_PPV_ARGS(&textureBuffer)
+	);
+	if (FAILED(hr)) {
+		Running = false;
+		return false;
+	}
+	textureBuffer->SetName(L"Texture Buffer Resource Heap");
+
+	UINT64 textureUploadBufferSize;
+	// texture upload heap must be 256 byte aligned
+	device->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+
+	hr = device->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(textureUploadBufferSize),
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&textureBufferUploadHeap)
+	);
+	if (FAILED(hr)) {
+		Running = false;
+		return false;
+	}
+	textureBufferUploadHeap->SetName(L"Texture Buffer Upload Resource Heap");
+
+	D3D12_SUBRESOURCE_DATA textureData = {};
+	textureData.pData = &imageData[0];
+	textureData.RowPitch = imageBytesPerRow;
+	textureData.SlicePitch = imageBytesPerRow * textureDesc.Height;
+
+	UpdateSubresources(commandList, textureBuffer, textureBufferUploadHeap, 0, 0, 1, &textureData);
+
+	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(textureBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+	// descriptor heaps
+	for (int i = 0; i < frameBufferCount; ++i) {
+		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+		heapDesc.NumDescriptors = 1;
+		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		hr = device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mainDescriptorHeap[i]));
+		if (FAILED(hr))
+			Running = false;
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		// 1 to 1 mapping
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = textureDesc.Format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = 1;
+		device->CreateShaderResourceView(textureBuffer, &srvDesc, mainDescriptorHeap[i]->GetCPUDescriptorHandleForHeapStart());
+	}
 
 	// execute command list
 	commandList->Close();
@@ -605,8 +781,12 @@ bool InitD3D() {
 	// increment fence value to ensure data is uploaded before drawing
 	fenceValue[frameIndex]++;
 	hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
-	if (FAILED(hr))
+	if (FAILED(hr)) {
+		Running = false;
 		return false;
+	}
+
+	delete imageData;
 
 	vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
 	// stride is the total size of an array slot (can be bigger than an array element, which means extra space between elements)
@@ -650,8 +830,8 @@ bool InitD3D() {
 	DirectX::XMStoreFloat4x4(&cube1RotMat, DirectX::XMMatrixIdentity());
 	DirectX::XMStoreFloat4x4(&cube1WorldMat, tmpMat);
 
-	cube2Position = DirectX::XMFLOAT4(1.5f, 0.0f, 0.0f, 0.0f);
-	posVec = DirectX::XMLoadFloat4(&cube2Position);
+	cube2PositionOffset = DirectX::XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
+	posVec = DirectX::XMLoadFloat4(&cube2PositionOffset) + DirectX::XMLoadFloat4(&cube1Position);
 
 	tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
 	DirectX::XMStoreFloat4x4(&cube2RotMat, DirectX::XMMatrixIdentity());
@@ -662,23 +842,10 @@ bool InitD3D() {
 
 // update game logic
 void Update() {
-	/*
-	* for previous constant buffer
-	* 
-	// only adding color multiplier for now
-	static float rIncrement = 0.00002f;
-	
-	cbColorMultiplierData.colorMultiplier.x += rIncrement;
-
-	if (cbColorMultiplierData.colorMultiplier.x > 1.0)
-		cbColorMultiplierData.colorMultiplier.x = 0;
-
-	memcpy(cbColorMultiplierGPUAddress[frameIndex], &cbColorMultiplierData, sizeof(cbColorMultiplierData));
-	*/
 	DirectX::XMFLOAT4 upVector = DirectX::XMFLOAT4(0.0f, 1.0f, 0.0f, 0.0f);
 	DirectX::XMVECTOR rotAxis = DirectX::XMLoadFloat4(&upVector);
 
-	DirectX::XMMATRIX rotMat = DirectX::XMMatrixRotationAxis(rotAxis, 2);
+	DirectX::XMMATRIX rotMat = DirectX::XMLoadFloat4x4(&cube1RotMat) * DirectX::XMMatrixRotationAxis(rotAxis, 0.0001f);
 	DirectX::XMStoreFloat4x4(&cube1RotMat, rotMat);
 
 	DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(XMLoadFloat4(&cube1Position));
@@ -696,7 +863,7 @@ void Update() {
 
 	// cube 2
 	DirectX::XMStoreFloat4x4(&cube2RotMat, rotMat);
-	DirectX::XMMATRIX translationOffsetMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&cube2Position));
+	DirectX::XMMATRIX translationOffsetMat = DirectX::XMMatrixTranslationFromVector(DirectX::XMLoadFloat4(&cube2PositionOffset));
 
 	DirectX::XMMATRIX scaleMat = DirectX::XMMatrixScaling(0.5f, 0.5f, 0.5f);
 	worldMat = scaleMat * translationOffsetMat * rotMat * translationMat;
@@ -704,10 +871,10 @@ void Update() {
 	wvpMat = XMLoadFloat4x4(&cube2WorldMat) * viewMat * projMat; 
 	transposed = XMMatrixTranspose(wvpMat);
 	XMStoreFloat4x4(&cbPerObject.wvpMat, transposed);
-	XMStoreFloat4x4(&cube2WorldMat, worldMat);
 
 	memcpy(cbvGPUAddress[frameIndex] + ConstantBufferPerObjectAlignedSize, &cbPerObject, sizeof(cbPerObject));
 
+	XMStoreFloat4x4(&cube2WorldMat, worldMat);
 }
 
 void UpdatePipeline() {
@@ -746,13 +913,10 @@ void UpdatePipeline() {
 	// draw triangles
 	commandList->SetGraphicsRootSignature(rootSignature);
 
-	/*
-	* no descriptor heap
-	* 
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mainDescriptorHeap[frameIndex] };
 	commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-	commandList->SetGraphicsRootDescriptorTable(0, mainDescriptorHeap[frameIndex]->GetGPUDescriptorHandleForHeapStart());
-	*/
+
+	commandList->SetGraphicsRootDescriptorTable(1, mainDescriptorHeap[frameIndex]->GetGPUDescriptorHandleForHeapStart());
 
 	commandList->RSSetViewports(1, &viewport);
 	commandList->RSSetScissorRects(1, &scissorRect);
@@ -766,7 +930,7 @@ void UpdatePipeline() {
 	commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
 
 	// draw cube 2
-	commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress());
+	commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress() + ConstantBufferPerObjectAlignedSize);
 
 	commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
 

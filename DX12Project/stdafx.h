@@ -9,11 +9,13 @@
 #endif
 
 #include <windows.h>
+#include <wincodec.h>
 
 #include <d3d12.h>
 // directx graphics infrastructure (dxgi)
 // communicated with kernel mode driver and system hardware, futureproofed
 #include <dxgi1_6.h>
+#include <dxgiformat.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
 // this file has helper functions
@@ -173,6 +175,17 @@ DirectX::XMFLOAT4 cube1Position;
 // cube 2
 DirectX::XMFLOAT4X4 cube2WorldMat;
 DirectX::XMFLOAT4X4 cube2RotMat;
-DirectX::XMFLOAT4 cube2Position;
+DirectX::XMFLOAT4 cube2PositionOffset;
 
 int numCubeIndices;
+
+// resource heap of texture
+ID3D12Resource* textureBuffer;
+
+int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescription, LPCWSTR filename, int& bytesPerRow);
+
+DXGI_FORMAT  GetDXGIFormatFromWICFormat(WICPixelFormatGUID& wicFormatGUID);
+WICPixelFormatGUID GetConvertToWICFormat(WICPixelFormatGUID& wicFormatGUID);
+int GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat);
+
+ID3D12Resource* textureBufferUploadHeap;
